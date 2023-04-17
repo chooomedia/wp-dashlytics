@@ -14,10 +14,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+define( 'DASHLYTICS_PLUGIN_URL', plugin_dir_url(__FILE__) );
+define( 'DASHLYTICS_VERSION', '0.3.0' );
+
 function dashlytics_options_data(WP_REST_Request $request) {
     $setValues = $request->get_param( 'tokenauth' )
-                    && $request->get_param( 'apiurl' )
-                    && $request->get_param( 'siteidarl' );
+                && $request->get_param( 'apiurl' )
+                && $request->get_param( 'siteidarl' );
 
     if ($setValues) {
         $data = array(
@@ -51,13 +54,13 @@ function dashlytics_enqueue_scripts() {
     global $pagenow;
 
     if($pagenow === 'admin.php') {
-        wp_enqueue_script('dashlytics-settings', plugin_dir_url(__FILE__) . 'app/public/build/settings.js', array(), '0.3.0', true);
+        wp_enqueue_script( 'dashlytics-settings', DASHLYTICS_PLUGIN_URL . '/app/public/build/settings.js', [], filemtime( DASHLYTICS_PLUGIN_URL . '/app/public/build/settings.js' ), true );
     }
     if ($pagenow === 'index.php') {
-        wp_enqueue_script('dashlytics-widget', plugin_dir_url(__FILE__) . 'app/public/build/dashboardwidget.js', array(), '0.3.0', true);
+        wp_enqueue_script( 'dashlytics-widget', DASHLYTICS_PLUGIN_URL . '/app/public/build/dashboardwidget.js', [], filemtime( DASHLYTICS_PLUGIN_URL . '/app/public/build/dashboardwidget.js' ), true );
     }
-    //wp_enqueue_script('jspdf', plugin_dir_url(__FILE__) . 'jspdf.min.js', array(), '2.3.1', true);
-    wp_enqueue_style('dashlytics-style', plugin_dir_url(__FILE__) . 'app/public/build/bundle.css', array(), '0.3.0', true);
+    //wp_enqueue_script( 'jspdf', DASHLYTICS_PLUGIN_URL . 'jspdf.min.js', [], DASHLYTICS_VERSION, true );
+    wp_enqueue_style( 'dashlytics-style', DASHLYTICS_PLUGIN_URL . '/app/public/build/bundle.css', [], filemtime( DASHLYTICS_PLUGIN_URL . '/app/public/build/bundle.css' ) );
 }
 
 add_action('admin_enqueue_scripts', 'dashlytics_enqueue_scripts');
