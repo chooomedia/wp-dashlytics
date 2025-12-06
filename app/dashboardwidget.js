@@ -1,7 +1,17 @@
 import DashboardWidget from './DashboardWidget.svelte';
 
-const dashboardWidget = new DashboardWidget({
-    target: document.querySelector("#dashlytics-widget")
-});
+function initWidget() {
+    const target = document.querySelector("#dashlytics-widget");
+    if (target) {
+        new DashboardWidget({
+            target: target
+        });
+    }
+}
 
-export default dashboardWidget;
+// Warte auf DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWidget);
+} else {
+    initWidget();
+}

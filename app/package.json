@@ -1,37 +1,34 @@
 {
-  "name": "dashlytics-app",
-  "version": "0.3.0",
-  "description": "A WordPress plugin built with Svelte",
-  "main": "index.js",
-  "svelte": "src/main.js",
-  "scripts": {
-    "build": "rollup -c",
-    "watch": "rollup -c -w"
-  },
-  "keywords": [
-    "wordpress",
-    "svelte",
-    "plugin"
-  ],
-  "author": "Chris Matt",
-  "license": "MIT",
-  "dependencies": {
-    "chart.js": "^4.2.1",
-    "svelte": "^3.58.0"
-  },
-  "devDependencies": {
-    "@rollup/plugin-commonjs": "^24.0.1",
-    "@rollup/plugin-json": "^6.0.0",
-    "@rollup/plugin-node-resolve": "^15.0.1",
-    "rollup": "^2.0.0",
-    "rollup-plugin-css-only": "^4.3.0",
-    "rollup-plugin-livereload": "^2.0.5",
-    "rollup-plugin-svelte": "^7.1.4",
-    "rollup-plugin-terser": "^7.0.2"
-  },
-  "jest": {
-    "transform": {
-      "^.+\\.js$": "babel-jest"
+    "name": "dashlytics-app",
+    "version": "0.7.8",
+    "type": "module",
+    "description": "Dashlytics - Matomo Analytics Widget für WordPress",
+    "main": "index.js",
+    "scripts": {
+        "build": "rollup -c",
+        "watch": "rollup -c -w",
+        "clean": "rm -rf public/build/*"
+    },
+    "keywords": [
+        "wordpress",
+        "svelte",
+        "matomo",
+        "analytics",
+        "dashboard"
+    ],
+    "author": "Christopher Matt <hello@chooomedia.de>",
+    "license": "GPL-2.0-or-later",
+    "dependencies": {
+        "chart.js": "^4.4.1",
+        "jspdf": "^2.5.1",
+        "svelte": "^4.2.8"
+    },
+    "devDependencies": {
+        "@rollup/plugin-commonjs": "^25.0.7",
+        "@rollup/plugin-node-resolve": "^15.2.3",
+        "rollup": "^4.9.1",
+        "rollup-plugin-css-only": "^4.5.2",
+        "rollup-plugin-svelte": "^7.1.6",
+        "@rollup/plugin-terser": "^0.4.4"
     }
-  }
 }

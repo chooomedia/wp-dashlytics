@@ -1,0 +1,520 @@
+/**
+ * Dashlytics Widget Styles
+ * Modern Dashboard Widget für WordPress
+ */
+
+/* Container */
+.dw-container {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #fff;
+    margin: -11px -12px -12px;
+}
+
+/* Spinning Animation */
+.dw-spinning {
+    display: inline-block;
+    animation: dw-spin 1s linear infinite;
+}
+
+@keyframes dw-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Stats */
+.dw-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 14px;
+    background: #f8fafc;
+}
+
+.dw-stat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dw-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.dw-stat-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--stat-color, #3b82f6);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.dw-stat-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dw-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.2;
+}
+
+.dw-stat-label {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Chart */
+.dw-chart-container {
+    padding: 0 14px;
+}
+
+.dw-chart {
+    height: 200px;
+    background: #fafafa;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.dw-chart.dw-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dw-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Loader */
+.dw-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.dw-loader-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: dw-spin 0.8s linear infinite;
+}
+
+/* Error */
+.dw-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 30px 20px;
+    text-align: center;
+}
+
+.dw-error-icon {
+    font-size: 32px;
+}
+
+.dw-error p {
+    color: #64748b;
+    font-size: 13px;
+    margin: 0;
+}
+
+/* Buttons */
+.dw-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dw-btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.dw-btn-primary:hover {
+    background: #2563eb;
+}
+
+.dw-btn-export {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    font-weight: 600;
+}
+
+.dw-btn-export:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.dw-btn-export:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Controls */
+.dw-controls {
+    padding: 14px;
+    background: #f1f5f9;
+    margin: 14px;
+    border-radius: 8px;
+}
+
+.dw-control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dw-control-row + .dw-control-row {
+    margin-top: 10px;
+}
+
+.dw-dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.dw-input-date {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    background: white;
+    color: #334155;
+    cursor: pointer;
+}
+
+.dw-input-date:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.dw-date-sep {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+/* Chart Types */
+.dw-chart-types {
+    display: flex;
+    background: white;
+    border-radius: 6px;
+    padding: 3px;
+    border: 1px solid #e2e8f0;
+}
+
+.dw-chart-type-btn {
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.dw-chart-type-btn:hover {
+    background: #f1f5f9;
+}
+
+.dw-chart-type-btn.dw-active {
+    background: #3b82f6;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+/* Color Picker */
+.dw-color-picker {
+    width: 32px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: white;
+}
+
+.dw-color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.dw-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+}
+
+/* Refresh Button */
+.dw-btn-refresh {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.dw-btn-refresh:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.dw-btn-refresh:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Export Dropdown */
+.dw-export-wrapper {
+    position: relative;
+    margin-left: auto;
+}
+
+.dw-export-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 6px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+    z-index: 1000;
+    min-width: 180px;
+    animation: dw-dropdown 0.2s ease;
+}
+
+@keyframes dw-dropdown {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dw-export-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+}
+
+.dw-export-option:hover {
+    background: #f8fafc;
+}
+
+.dw-export-option:first-child {
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.dw-export-option > span {
+    font-size: 20px;
+}
+
+.dw-export-option div {
+    display: flex;
+    flex-direction: column;
+}
+
+.dw-export-option strong {
+    font-size: 13px;
+    color: #1e293b;
+}
+
+.dw-export-option small {
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* Footer */
+.dw-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 11px;
+}
+
+.dw-settings-link {
+    color: #3b82f6;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.dw-settings-link:hover {
+    text-decoration: underline;
+}
+
+.dw-powered {
+    color: #94a3b8;
+}
+
+.dw-powered strong {
+    color: #64748b;
+}
+
+/* Setup Notice */
+.dashlytics-setup-notice {
+    padding: 20px;
+    text-align: center;
+}
+
+.dashlytics-setup-notice p {
+    margin: 0 0 15px;
+    color: #64748b;
+}
+
+/* ============================================
+   Minimal View
+   ============================================ */
+
+.dw-container.dw-minimal {
+    padding: 12px;
+}
+
+.dw-minimal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.dw-minimal-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    flex: 1;
+}
+
+.dw-minimal-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.dw-minimal-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--stat-color, #1e293b);
+}
+
+.dw-minimal-stat-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dw-minimal-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Minimal Chart */
+.dw-minimal-chart {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 10px;
+    min-height: 120px;
+}
+
+.dw-minimal-chart canvas {
+    max-height: 120px;
+}
+
+.dw-loader-small {
+    padding: 20px;
+    justify-content: center;
+}
+
+.dw-loader-small .dw-loader-spinner {
+    width: 24px;
+    height: 24px;
+}
+
+/* Responsive */
+@media (max-width: 500px) {
+    .dw-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .dw-control-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .dw-export-wrapper {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .dw-btn-export {
+        width: 100%;
+    }
+    
+    .dw-export-menu {
+        left: 0;
+        right: 0;
+    }
+    
+    .dw-minimal-stats {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .dw-minimal-stat {
+        flex-direction: column;
+        gap: 2px;
+    }
+}
+

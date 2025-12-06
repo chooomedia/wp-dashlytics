@@ -1,242 +1,817 @@
 <script>
 import { onMount } from "svelte";
 
-let SettingsTitle = 'Dashlytic Settings';
-let settingsTutorialGif = '../wp-content/plugins/wp-dashlytics/assets/how-to-show-matomo-token-for-reporting-api.gif';
-let shareImageUri = '';
-let data = {};
-// let siteUrl = window.location.href;
-// TODO Generate dynamic
-const wholeUrl = 'http://wordpress-local:8888/index.php';
-const matomoRestUrl = '?rest_route=/matomo/v1/api/';
-const restUrl = '/wp-json/dashlytics/v1/options';
+// Globale WordPress Daten
+const wpData = window.dashlyticsAdmin || {};
+const restUrl = wpData.restUrl || '/wp-json/dashlytics/v1/';
+const nonce = wpData.nonce || '';
+const pluginUrl = wpData.pluginUrl || '';
+const matomoDetected = wpData.matomoDetected || { installed: false };
+const i18n = wpData.i18n || {};
 
-// Function who checks if request token for matomo valid if not generate new one and write into REST Plugin Api
-async function checkToken() {
+// State
+let settings = {
+    matomo_url: '',
+    site_id: 1,
+    token_auth: '',
+    chart_type: 'line',
+    chart_color: '#2271b1',
+    date_range: 30,
+    auto_detect_matomo: true
+};
+
+let loading = true;
+let saving = false;
+let testing = false;
+let connectionStatus = null; // null, 'success', 'error'
+let connectionMessage = '';
+let toast = null;
+let activeTab = 'connection';
+let showToken = false;
+let autoConnected = false;
+
+// Token maskieren für Anzeige
+function maskToken(token) {
+    if (!token || token.length < 8) return '••••••••';
+    return token.substring(0, 4) + '••••••••' + token.substring(token.length - 4);
+}
+
+const chartTypes = [
+    { value: 'line', label: 'Liniendiagramm', icon: '📈' },
+    { value: 'bar', label: 'Balkendiagramm', icon: '📊' },
+    { value: 'pie', label: 'Kreisdiagramm', icon: '🥧' }
+];
+
+const dateRanges = [
+    { value: 7, label: 'Letzte 7 Tage' },
+    { value: 14, label: 'Letzte 14 Tage' },
+    { value: 30, label: 'Letzte 30 Tage' },
+    { value: 60, label: 'Letzte 60 Tage' },
+    { value: 90, label: 'Letzte 90 Tage' }
+];
+
+// API Funktionen
+async function fetchSettings() {
     try {
-        const response = await fetch(`${wholeUrl}/${matomoRestUrl}`, {
+        const response = await fetch(`${restUrl}settings`, {
         headers: {
-            Authorization: `Bearer ${data.authtoken}`
+                'X-WP-Nonce': nonce
         }
         });
         
         if (response.ok) {
-        // Token is valid
-        console.log('Token is valid');
-        return true;
-        } else if (response.status === 404) {
-        // Token is invalid, generate new token
-        console.log('Generating new token...');
-        const newTokenResponse = await fetch(`${wholeUrl}/${matomoRestUrl}`, {
-            method: 'POST'
-        });
-        
-        if (newTokenResponse.ok) {
-            // Update tokenauth variable with new token
-            const newToken = await newTokenResponse.text();
-            await fetch(restUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                tokenauth: newToken
-            })
-            });
+            const data = await response.json();
+            settings = { ...settings, ...data };
             
-            console.log('Token updated successfully');
-            return true;
-        } else {
-            console.log('Failed to generate new token');
-            return false;
-        }
-        } else {
-        console.log(`Error: ${response.status} - ${response.statusText}`);
-        return false;
+            // Prüfen ob Token bereits existiert (z.B. von Matomo for WordPress)
+            if (matomoDetected.installed && settings.token_auth) {
+                autoConnected = true;
+            }
         }
     } catch (error) {
-        console.log(`Error: ${error}`);
-        return false;
+        console.error('Fehler beim Laden der Einstellungen:', error);
+    } finally {
+        loading = false;
     }
 }
 
-// Loads Data from REST Plugin route
-async function loadRestData() {
-    const response = await fetch(`${restUrl}`);
-    data = await response.json();
+async function saveSettings() {
+    saving = true;
+    
+    try {
+        const response = await fetch(`${restUrl}settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': nonce
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            showToast(i18n.saveSuccess || 'Einstellungen gespeichert!', 'success');
+        } else {
+            showToast(i18n.saveError || 'Fehler beim Speichern.', 'error');
+        }
+    } catch (error) {
+        console.error('Fehler beim Speichern:', error);
+        showToast(i18n.saveError || 'Fehler beim Speichern.', 'error');
+    } finally {
+        saving = false;
+    }
 }
 
-// Function for save Values from form into REST Plugin route
-async function saveChanges() {
-    const response = await fetch(`${restUrl}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        apiurl: data.apiurl,
-        siteidarl: data.siteidarl,
-        tokenauth: data.tokenauth
-      })
-    });
-
-    const responseData = await response.json();
-    console.log(responseData);
+async function testConnection() {
+    testing = true;
+    connectionStatus = null;
+    
+    try {
+        const response = await fetch(`${restUrl}test-connection`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': nonce
+            },
+            body: JSON.stringify({
+                matomo_url: settings.matomo_url,
+                token_auth: settings.token_auth,
+                site_id: settings.site_id
+            })
+            });
+            
+        const data = await response.json();
+        
+        if (data.success) {
+            connectionStatus = 'success';
+            connectionMessage = data.message;
+            showToast(i18n.connectionSuccess || 'Verbindung erfolgreich!', 'success');
+        } else {
+            connectionStatus = 'error';
+            connectionMessage = data.message;
+            showToast(i18n.connectionError || 'Verbindung fehlgeschlagen.', 'error');
+        }
+    } catch (error) {
+        connectionStatus = 'error';
+        connectionMessage = error.message;
+        showToast(i18n.connectionError || 'Verbindung fehlgeschlagen.', 'error');
+    } finally {
+        testing = false;
+    }
 }
 
-// Saves data values for Plugin from form input values
-async function handleSubmit(event) {
-    event.preventDefault();
-    const savedData = await saveChanges();
-    console.log('Saved Data:', savedData);
+async function detectToken() {
+    try {
+        const response = await fetch(`${restUrl}detect-token`, {
+            headers: {
+                'X-WP-Nonce': nonce
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.token) {
+            settings.token_auth = data.token;
+            showToast(i18n.tokenGenerated || 'Token automatisch erkannt!', 'success');
+        } else if (data.use_wp_auth) {
+            showToast('Nutze WordPress Authentifizierung', 'success');
+        }
+    } catch (error) {
+        console.error('Token-Erkennung fehlgeschlagen:', error);
+    }
 }
 
-async function updateData() {
-    const isTokenValid = await getData();
-    if (isTokenValid) {
-        // Do something with the data
-        console.log('Data is valid');
-    } else {
-        // Handle invalid token error
-        console.log('Data is invalid');
+function showToast(message, type = 'info') {
+    toast = { message, type };
+    setTimeout(() => {
+        toast = null;
+    }, 3000);
+}
+
+async function useMatomoWP() {
+    if (matomoDetected.installed) {
+        settings.matomo_url = '';
+        settings.auto_detect_matomo = true;
+        await detectToken();
+        autoConnected = true;
+        connectionStatus = 'success';
+        connectionMessage = 'Automatisch mit Matomo for WordPress verbunden';
     }
 }
 
 onMount(() => {
-    loadRestData();
+    fetchSettings();
 });
 </script>
 
-<div class="wrap">
-    <h1>{SettingsTitle}</h1>
-    <div id="welcome-panel" class="welcome-panel hidden">
-        <input type="hidden" id="welcomepanelnonce" name="welcomepanelnonce" value="1" />
+<div class="dashlytics-settings">
+    <!-- Header -->
+    <header class="dashlytics-header">
+        <div class="dashlytics-header-content">
+            <div class="dashlytics-logo">📊</div>
+            <div>
+                <h1>Dashlytics</h1>
+                <p>Matomo Widget Dashboard für WordPress</p>
+            </div>
+        </div>
+        <div class="dashlytics-header-actions">
+            <span class="dashlytics-version">v0.7.8</span>
+            {#if connectionStatus === 'success'}
+                <span class="dashlytics-status dashlytics-status--connected">
+                    <span class="dashlytics-status-dot"></span>
+                    Verbunden
+                </span>
+            {:else if connectionStatus === 'error'}
+                <span class="dashlytics-status dashlytics-status--disconnected">
+                    <span class="dashlytics-status-dot"></span>
+                    Nicht verbunden
+                </span>
+            {:else}
+                <span class="dashlytics-status dashlytics-status--pending">
+                    <span class="dashlytics-status-dot"></span>
+                    Konfiguration erforderlich
+                </span>
+            {/if}
+        </div>
+    </header>
+
+    <!-- Matomo Detection Banner -->
+    {#if matomoDetected.installed}
+        <div class="dashlytics-detection">
+            <div class="dashlytics-detection-icon">✓</div>
+            <div class="dashlytics-detection-content">
+                <h3>Matomo for WordPress erkannt!</h3>
+                <p>Das Matomo Plugin ist installiert. Dashlytics kann automatisch verbunden werden.</p>
+            </div>
+            <button class="dashlytics-btn dashlytics-btn--success" on:click={useMatomoWP}>
+                Automatisch verbinden
+            </button>
+        </div>
+    {/if}
+
+    <!-- Tabs -->
+    <div class="dashlytics-tabs">
+        <button 
+            class="dashlytics-tab" 
+            class:dashlytics-tab--active={activeTab === 'connection'}
+            on:click={() => activeTab = 'connection'}
+        >
+            🔗 Verbindung
+        </button>
+        <button 
+            class="dashlytics-tab" 
+            class:dashlytics-tab--active={activeTab === 'display'}
+            on:click={() => activeTab = 'display'}
+        >
+            🎨 Darstellung
+        </button>
+        <button 
+            class="dashlytics-tab" 
+            class:dashlytics-tab--active={activeTab === 'help'}
+            on:click={() => activeTab = 'help'}
+        >
+            ❓ Hilfe
+        </button>
     </div>
 
-    <div id="dashboard-settings-wrap" class="dashboard-settings">
-        <form id="dashboard-widgets" on:submit={handleSubmit} class="metabox-holder">
-            <div class="postbox-container">
-                <div class="meta-box-sortables ui-sortable">
-                    <div id="api-settings" class="postbox ">
-                        <div class="postbox-header">
-                            <h2 class="hndle ui-sortable-handle">API Settings</h2>
-                        </div>
-                        <div class="inside">
-                            <h3 style="margin-top:14px;">Api Url</h3>
-                            <i>Standard Matomo Api Url: <b>?rest_route=/matomo/v1/api/</b></i><br />
-                            {wholeUrl}
-                            <input class="Settings--input" type="text" name="api_url" placeholder={data.apiurl} bind:value={data.apiurl} />
-                            <h3 style="margin-top:14px;">Site Id</h3>
-                            <i>Standard Site Id: <b>1</b></i><br />
-                            <input class="Settings--input" type="number" name="site_id_arl"
-                                bind:value={data.siteidarl} /><br />
-                            <div style="max-height:44px;">
-                                <button type="submit" class="Settings--button button button-primary">
-                                    Save Changes
-                                </button>
+    {#if loading}
+        <div class="dashlytics-card">
+            <div class="dashlytics-card-body">
+                <div class="dashlytics-skeleton" style="height: 200px;"></div>
+            </div>
+        </div>
+    {:else}
+        <!-- Connection Tab -->
+        {#if activeTab === 'connection'}
+            <div class="dashlytics-grid">
+                <div class="dashlytics-card dashlytics-card--flex">
+                    <div class="dashlytics-card-header">
+                        <h2 class="dashlytics-card-title">
+                            <span class="dashlytics-card-icon">🔌</span>
+                            API Verbindung
+                        </h2>
+                    </div>
+                    <div class="dashlytics-card-body dashlytics-card-body--grow">
+                        {#if !matomoDetected.installed}
+                            <div class="dashlytics-form-group">
+                                <label class="dashlytics-label">
+                                    Matomo URL
+                                    <span class="dashlytics-label-hint">(Ihre Matomo Installation)</span>
+                                </label>
+                                <input 
+                                    type="url" 
+                                    class="dashlytics-input" 
+                                    bind:value={settings.matomo_url}
+                                    placeholder="https://analytics.ihre-domain.de"
+                                />
                             </div>
-                            {#if Object.keys(data).length > 0}
-                            <h2>Daten:</h2>
-                                <pre>{JSON.stringify(data, null, 2)}</pre>
+                        {/if}
+
+                        <div class="dashlytics-form-group">
+                            <label class="dashlytics-label">
+                                Site ID
+                                <span class="dashlytics-label-hint">(Standard: 1)</span>
+                            </label>
+                            <input 
+                                type="number" 
+                                class="dashlytics-input" 
+                                bind:value={settings.site_id}
+                                min="1"
+                                style="max-width: 120px;"
+                            />
+                        </div>
+
+                        <div class="dashlytics-form-group">
+                            <label class="dashlytics-label">
+                                Auth Token
+                                <span class="dashlytics-label-hint">
+                                    {#if autoConnected || (matomoDetected.installed && settings.token_auth)}
+                                        (automatisch erkannt)
+                                    {:else}
+                                        (API Zugriffstoken)
+                                    {/if}
+                                </span>
+                            </label>
+                            <div class="dashlytics-input-group">
+                                <input 
+                                    type="text"
+                                    class="dashlytics-input" 
+                                    class:dashlytics-input--readonly={autoConnected || (matomoDetected.installed && settings.token_auth)}
+                                    value={showToken ? settings.token_auth : (settings.token_auth ? maskToken(settings.token_auth) : '')}
+                                    placeholder="Ihr Matomo API Token"
+                                    readonly={autoConnected || (matomoDetected.installed && settings.token_auth)}
+                                    on:input={(e) => { if (!autoConnected && !(matomoDetected.installed && settings.token_auth)) settings.token_auth = e.target.value; }}
+                                />
+                                <button 
+                                    type="button"
+                                    class="dashlytics-btn dashlytics-btn--icon"
+                                    on:click={() => showToken = !showToken}
+                                    title={showToken ? 'Token verbergen' : 'Token anzeigen'}
+                                >
+                                    <span class="dashicons" class:dashicons-visibility={!showToken} class:dashicons-hidden={showToken}></span>
+                                </button>
+                                {#if matomoDetected.installed && !autoConnected && !settings.token_auth}
+                                    <button 
+                                        type="button"
+                                        class="dashlytics-btn dashlytics-btn--secondary"
+                                        on:click={detectToken}
+                                        title="Token automatisch erkennen"
+                                    >
+                                        🔍 Auto
+                                    </button>
+                                {/if}
+                            </div>
+                            {#if autoConnected}
+                                <p class="dashlytics-field-info">
+                                    ✓ Token wurde automatisch von Matomo for WordPress übernommen
+                                </p>
                             {/if}
                         </div>
+
+                        {#if connectionMessage}
+                            <div class="dashlytics-alert" class:dashlytics-alert--success={connectionStatus === 'success'} class:dashlytics-alert--error={connectionStatus === 'error'}>
+                                <span class="dashlytics-alert-icon">
+                                    {connectionStatus === 'success' ? '✓' : '✗'}
+                                </span>
+                                <div class="dashlytics-alert-content">
+                                    <p>{connectionMessage}</p>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                    <div class="dashlytics-card-footer dashlytics-card-footer--sticky">
+                        <button 
+                            type="button"
+                            class="dashlytics-btn dashlytics-btn--secondary"
+                            on:click={testConnection}
+                            disabled={testing}
+                            class:dashlytics-btn--loading={testing}
+                        >
+                            {testing ? '' : '🔄'} Verbindung testen
+                        </button>
+                        <button 
+                            type="button"
+                            class="dashlytics-btn dashlytics-btn--primary"
+                            on:click={saveSettings}
+                            disabled={saving}
+                            class:dashlytics-btn--loading={saving}
+                        >
+                            {saving ? '' : '💾'} Speichern
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="postbox-container">
-                <div class="meta-box-sortables ui-sortable">
-                    <div id="auth-token" class="postbox ">
-                        <div class="postbox-header">
-                            <h2 class="hndle ui-sortable-handle">Auth Token</h2>
-                        </div>
-                        <div class="inside">
-                            <i>1. Go to your <b>Matomo Dashboard</b> <a
-                                    href="/wp-content/plugins/matomo/app/index.php"
-                                    target="_blank">Matomo Dashboard</a></i><br>
-                            <i>2. Click on the <b>Export Button</b> <img
-                                    style="object-fit:cover;width:24px;height:18px;transform:translateY(3px);"
-                                    src="{shareImageUri}" alt="share logo" /> Icon of "last visits"</i><br>
-                            <i>3. Export Metrics as <b>HTML or JSON</b></i><br>
-                            <i>4. Have a look on the <b>Video above</b></i> 😎<br>
-                            <i>5. Look into our <b>Website Url</b></i> (i.E.
-                            <code>http://domain...&token_auth=00e3dwwdewDew...</code> ) --> find
-                            <code>token_auth</code><br>
-                            <i>6. Copy the Value of your Url <b>after</b> </i><code>token_auth=</code> and paste it
-                            below to request data from your Matomo<br>
-                            <br>
-                            <span style="background:#f5f5f5;width:100%;padding:1.1rem 1.2rem;">
-                                <b>Insert your Auth token here:</b>
-                                <input class="Settings--input" bind:value={data.tokenauth} type="text" minlength="32"
-                                    name="token_auth" /><br>
-                            </span>
-                            <br>
-                        </div>
+
+                <!-- Quick Stats Preview -->
+                <div class="dashlytics-card">
+                    <div class="dashlytics-card-header">
+                        <h2 class="dashlytics-card-title">
+                            <span class="dashlytics-card-icon">📈</span>
+                            Vorschau
+                        </h2>
                     </div>
-                </div>
-            </div>
-            <div class="postbox-container">
-                <div class="meta-box-sortables ui-sortable">
-                    <div id="dev-infos" class="postbox">
-                        <div class="postbox-header">
-                            <h2 class="hndle ui-sortable-handle">Video find Auth Token</h2>
-                        </div>
-                        <div class="inside">
-                            <img src={settingsTutorialGif} alt="Gif Tutorial how to find the scret token api"
-                                style="width:100%;object-fit:contain;">
-                            <br>
-                            <p>Thanks for choosing the Plugin! 🎉 Keep in mind it's in beta, so expect some quirks
-                                😅.
-                                We're always working to improve it.</p>
-                            <p>Feel like supporting Christopher, the developer? He'd be grateful for a small
-                                donation, like a coffee ☕ or snack 🍪:
-                                <a href="https://www.paypal.com/paypalme/choooomedia/4" target="_blank">Buy me a ☕
-                                    or 🍪</a>
+                    <div class="dashlytics-card-body">
+                        <div class="dashlytics-preview">
+                            <div class="dashlytics-preview-chart">
+                                {#each [40, 65, 45, 80, 55, 90, 70] as height, i}
+                                    <div 
+                                        class="dashlytics-preview-bar" 
+                                        style="height: {height}%; background: {settings.chart_color}; animation-delay: {i * 0.1}s;"
+                                    ></div>
+                                {/each}
+                            </div>
+                            <p style="color: #666; font-size: 13px;">
+                                So wird Ihr Dashboard Widget aussehen
                             </p>
-                            <p>Stay awesome 😎 and enjoy the plugin!</p>
-                            <div class="d-flex">
-                                <a class="Settings--button button button-primary"
-                                    href="https://www.paypal.com/paypalme/choooomedia/4" target="_blank"
-                                    style="height:28px;margin-top:5px;">Support Plugin Developer</a>
-                                <a class="Settings--button button button-primary"
-                                    href="https://github.com/chooomedia/wp-dashboard-statistics-widget-matomo"
-                                    target="_blank" style="height:28px;margin-top:5px;">Plugin Github Repository</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {/if}
+
+        <!-- Display Tab -->
+        {#if activeTab === 'display'}
+            <div class="dashlytics-grid">
+                <div class="dashlytics-card">
+                    <div class="dashlytics-card-header">
+                        <h2 class="dashlytics-card-title">
+                            <span class="dashlytics-card-icon">📊</span>
+                            Chart Einstellungen
+                        </h2>
+                    </div>
+                    <div class="dashlytics-card-body">
+                        <div class="dashlytics-form-group">
+                            <label class="dashlytics-label">Diagramm-Typ</label>
+                            <div class="dashlytics-chart-types">
+                                {#each chartTypes as type}
+                                    <label class="dashlytics-chart-type" class:active={settings.chart_type === type.value}>
+                                        <input 
+                                            type="radio" 
+                                            name="chart_type" 
+                                            value={type.value}
+                                            bind:group={settings.chart_type}
+                                        />
+                                        <span class="dashlytics-chart-type-icon">{type.icon}</span>
+                                        <span class="dashlytics-chart-type-label">{type.label}</span>
+                                    </label>
+                                {/each}
                             </div>
                         </div>
+
+                        <div class="dashlytics-form-group">
+                            <label class="dashlytics-label">Hauptfarbe</label>
+                            <div class="dashlytics-color-picker">
+                                <input 
+                                    type="color" 
+                                    class="dashlytics-color-input"
+                                    bind:value={settings.chart_color}
+                                />
+                                <span class="dashlytics-color-value">{settings.chart_color}</span>
+                            </div>
+                        </div>
+
+                        <div class="dashlytics-form-group">
+                            <label class="dashlytics-label">Standard Zeitraum</label>
+                            <select class="dashlytics-select" bind:value={settings.date_range}>
+                                {#each dateRanges as range}
+                                    <option value={range.value}>{range.label}</option>
+                                {/each}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="dashlytics-card-footer">
+                        <button 
+                            class="dashlytics-btn dashlytics-btn--primary"
+                            on:click={saveSettings}
+                            disabled={saving}
+                            class:dashlytics-btn--loading={saving}
+                        >
+                            {saving ? '' : '💾'} Speichern
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Preview -->
+                <div class="dashlytics-card">
+                    <div class="dashlytics-card-header">
+                        <h2 class="dashlytics-card-title">
+                            <span class="dashlytics-card-icon">👁️</span>
+                            Live Vorschau
+                        </h2>
+                    </div>
+                    <div class="dashlytics-card-body">
+                        <div class="dashlytics-preview" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                            <div class="dashlytics-preview-chart">
+                                {#if settings.chart_type === 'line'}
+                                    <!-- Liniendiagramm mit Punkten und Verbindung -->
+                                    <svg viewBox="0 0 140 80" style="width: 100%; height: 100px;">
+                                        <polyline 
+                                            fill="none" 
+                                            stroke="{settings.chart_color}" 
+                                            stroke-width="2"
+                                            points="10,60 30,40 50,50 70,25 90,35 110,15 130,30"
+                                        />
+                                        <circle cx="10" cy="60" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="30" cy="40" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="50" cy="50" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="70" cy="25" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="90" cy="35" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="110" cy="15" r="4" fill="{settings.chart_color}"/>
+                                        <circle cx="130" cy="30" r="4" fill="{settings.chart_color}"/>
+                                    </svg>
+                                {:else if settings.chart_type === 'bar'}
+                                    <!-- Balkendiagramm -->
+                                    {#each [40, 65, 45, 80, 55, 90, 70] as height, i}
+                                        <div 
+                                            class="dashlytics-preview-bar" 
+                                            style="height: {height}%; background: {settings.chart_color}; border-radius: 4px 4px 0 0; width: 20px;"
+                                        ></div>
+                                    {/each}
+                                {:else}
+                                    <!-- Kreisdiagramm -->
+                                    <div style="width: 120px; height: 120px; border-radius: 50%; background: conic-gradient({settings.chart_color} 0% 35%, #e0e0e0 35% 55%, {settings.chart_color}88 55% 80%, #ccc 80% 100%);"></div>
+                                {/if}
+                            </div>
+                            <p style="margin: 16px 0 0; color: #666; font-size: 13px;">
+                                {chartTypes.find(t => t.value === settings.chart_type)?.label || 'Diagramm'}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </form>
+        {/if}
+
+        <!-- Help Tab -->
+        {#if activeTab === 'help'}
+            <div class="dashlytics-grid dashlytics-grid--full">
+                <div class="dashlytics-card">
+                    <div class="dashlytics-card-header">
+                        <h2 class="dashlytics-card-title">
+                            <span class="dashlytics-card-icon">📖</span>
+                            Schnellstart Anleitung
+                        </h2>
+                    </div>
+                    <div class="dashlytics-card-body">
+                        <div class="dashlytics-help-steps">
+                            {#if matomoDetected.installed}
+                                <!-- Vereinfachte Anleitung für Matomo for WordPress -->
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">1</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Automatisch verbinden</strong>
+                                        <p>Matomo for WordPress wurde erkannt! Klicken Sie oben auf "Automatisch verbinden" - Dashlytics übernimmt alle Einstellungen automatisch.</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">2</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Dashboard Widget nutzen</strong>
+                                        <p>Nach der Verbindung erscheint das Statistik-Widget auf Ihrem WordPress Dashboard. Sie können Zeitraum, Diagramm-Typ und Farbe direkt im Widget anpassen.</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">3</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Reports exportieren</strong>
+                                        <p>Nutzen Sie den "Report" Button im Widget um Ihre Statistiken als PDF-Bericht oder PNG-Bild zu exportieren.</p>
+                                    </div>
+                                </div>
+                            {:else}
+                                <!-- Anleitung für externe Matomo Installation -->
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">1</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Matomo for WordPress installieren</strong>
+                                        <p>Für die beste Integration installieren Sie das kostenlose "Matomo Analytics" Plugin aus dem WordPress Plugin-Verzeichnis.</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">2</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Alternative: Externe Matomo Installation</strong>
+                                        <p>Falls Sie Matomo extern hosten, tragen Sie Ihre Matomo-URL, Site-ID und einen API-Token unter "Verbindung" ein.</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-help-step">
+                                    <span class="dashlytics-help-step-number">3</span>
+                                    <div class="dashlytics-help-step-content">
+                                        <strong>Verbindung testen</strong>
+                                        <p>Klicken Sie auf "Verbindung testen" um sicherzustellen, dass alles funktioniert.</p>
+                                    </div>
+                                </div>
+                            {/if}
+                        </div>
+
+                        <!-- Features Übersicht -->
+                        <div class="dashlytics-features-section">
+                            <h3 class="dashlytics-features-title">Widget Funktionen</h3>
+                            <div class="dashlytics-feature-cards">
+                                <div class="dashlytics-feature-card">
+                                    <div class="dashlytics-feature-card-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                                        <span class="dashicons dashicons-chart-bar"></span>
+                                    </div>
+                                    <div class="dashlytics-feature-card-content">
+                                        <h4>Statistik-Karten</h4>
+                                        <p>Besucher, Seitenaufrufe, Absprungrate und Verweildauer auf einen Blick</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-feature-card">
+                                    <div class="dashlytics-feature-card-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                        <span class="dashicons dashicons-chart-line"></span>
+                                    </div>
+                                    <div class="dashlytics-feature-card-content">
+                                        <h4>Interaktive Charts</h4>
+                                        <p>Linie, Balken oder Kreis - wählen Sie Ihre Darstellung</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-feature-card">
+                                    <div class="dashlytics-feature-card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                        <span class="dashicons dashicons-calendar-alt"></span>
+                                    </div>
+                                    <div class="dashlytics-feature-card-content">
+                                        <h4>Flexibler Zeitraum</h4>
+                                        <p>Beliebigen Zeitraum per Datumswahl im Widget auswählen</p>
+                                    </div>
+                                </div>
+                                <div class="dashlytics-feature-card">
+                                    <div class="dashlytics-feature-card-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                                        <span class="dashicons dashicons-download"></span>
+                                    </div>
+                                    <div class="dashlytics-feature-card-content">
+                                        <h4>PDF & PNG Export</h4>
+                                        <p>Statistiken als professionellen Report oder Bild exportieren</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashlytics-support">
+                            <a href="https://github.com/chooomedia/wp-dashlytics" target="_blank" class="dashlytics-support-link">
+                                <span class="dashlytics-support-link-icon">📦</span>
+                                <span>GitHub Repository</span>
+                            </a>
+                            <a href="https://developer.matomo.org/api-reference/reporting-api" target="_blank" class="dashlytics-support-link">
+                                <span class="dashlytics-support-link-icon">📚</span>
+                                <span>Matomo API Docs</span>
+                            </a>
+                            <a href="https://www.paypal.com/paypalme/choooomedia/4" target="_blank" class="dashlytics-support-link">
+                                <span class="dashlytics-support-link-icon">☕</span>
+                                <span>Entwickler unterstützen</span>
+                            </a>
+                            <a href="https://chooomedia.de" target="_blank" class="dashlytics-support-link">
+                                <span class="dashlytics-support-link-icon">🌐</span>
+                                <span>chooomedia.de</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {/if}
+    {/if}
+
+    <!-- Toast Notification -->
+    {#if toast}
+        <div class="dashlytics-toast" class:dashlytics-toast--success={toast.type === 'success'} class:dashlytics-toast--error={toast.type === 'error'}>
+            {toast.message}
     </div>
+    {/if}
 </div>
 
 <style>
-    .d-flex {
+    .dashlytics-settings {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    }
+
+    .dashlytics-chart-types {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .dashlytics-chart-type {
         display: flex;
-        gap: 5px;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 16px;
+        background: #f0f0f1;
+        border: 2px solid transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    i {
-        line-height: 17pt;
+    .dashlytics-chart-type:hover {
+        background: #e7f3ff;
     }
 
-    .Settings--button {
-        line-height: 1.4;
-        padding: 3px 10px 3px;
-        font-family: Consolas, Monaco, monospace;
-        border: 1px solid #ccc;
-        border-radius: 0px;
-        background: #fff;
-        color: #fff;
+    .dashlytics-chart-type.active {
+        background: #e7f3ff;
+        border-color: #2271b1;
     }
 
-    .Settings--input {
-        line-height: 1.4;
-        padding: 3px 10px 3px;
-        font-family: Consolas, Monaco, monospace;
-        border: 1px solid #ccc;
-        border-radius: 0px;
-        background: #fff;
-        color: #fff;
-        min-width: 20vw;
+    .dashlytics-chart-type input {
+        display: none;
+    }
+
+    .dashlytics-chart-type-icon {
+        font-size: 28px;
+    }
+
+    .dashlytics-chart-type-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1d2327;
+    }
+
+    /* Token Field */
+    .dashlytics-input--readonly {
+        background: #f6f7f7;
+        font-family: monospace;
+        letter-spacing: 1px;
+    }
+
+    .dashlytics-field-info {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: #00a32a;
+    }
+
+    /* Features Section */
+    .dashlytics-features-section {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .dashlytics-features-title {
+        margin: 0 0 20px;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dashlytics-features-title::before {
+        content: '';
+        width: 4px;
+        height: 20px;
+        background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+        border-radius: 2px;
+    }
+
+    .dashlytics-feature-cards {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+        .dashlytics-feature-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .dashlytics-feature-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+
+    .dashlytics-feature-card:hover {
+        border-color: #2271b1;
+        box-shadow: 0 4px 12px rgba(34, 113, 177, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .dashlytics-feature-card-icon {
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        color: #ffffff;
+    }
+
+    .dashlytics-feature-card-icon .dashicons {
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+    }
+
+    .dashlytics-feature-card-content h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .dashlytics-feature-card-content p {
+        margin: 0;
+        font-size: 13px;
+        color: #64748b;
+        line-height: 1.5;
+    }
+
+    /* Animations */
+    .dashlytics-preview-bar {
+        animation: growUp 0.6s ease-out forwards;
+        transform-origin: bottom;
+    }
+
+    @keyframes growUp {
+        from {
+            transform: scaleY(0);
+        }
+        to {
+            transform: scaleY(1);
+        }
     }
 </style>
