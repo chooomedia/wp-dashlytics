@@ -891,7 +891,7 @@ async function exportChartAsPng() {
         console.error('PNG Export Fehler:', err);
         const link = document.createElement('a');
         link.download = `analytics-chart-${startDate}-${endDate}.png`;
-        link.href = chart.canvas.toDataURL('image/png', 1.0);
+        link.href = chart.toBase64Image('image/png', 1);
         link.click();
     }
 }

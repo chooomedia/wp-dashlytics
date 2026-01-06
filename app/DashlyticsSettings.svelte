@@ -101,10 +101,17 @@ async function saveSettings() {
     }
 }
 
+// Reset connection test status
+function resetConnectionTest() {
+    connectionStatus = null;
+    connectionMessage = '';
+}
+
+// Test connection to Matomo
 async function testConnection() {
     testing = true;
     connectionStatus = null;
-    
+
     try {
         const response = await fetch(`${restUrl}test-connection`, {
             method: 'POST',
@@ -118,9 +125,9 @@ async function testConnection() {
                 site_id: settings.site_id
             })
             });
-            
+
         const data = await response.json();
-        
+
         if (data.success) {
             connectionStatus = 'success';
             connectionMessage = data.message;
@@ -152,11 +159,18 @@ async function detectToken() {
         if (data.success && data.token) {
             settings.token_auth = data.token;
             showToast(i18n.tokenGenerated || 'Token automatisch erkannt!', 'success');
+            return { useWpAuth: false, token: data.token };
         } else if (data.use_wp_auth) {
-            showToast('Nutze WordPress Authentifizierung', 'success');
+            settings.token_auth = ''; // Clear any existing token
+            showToast(data.message || 'WordPress Authentifizierung wird verwendet', 'success');
+            return { useWpAuth: true };
         }
+        
+        return { useWpAuth: false };
     } catch (error) {
         console.error('Token-Erkennung fehlgeschlagen:', error);
+        showToast('Token-Erkennung fehlgeschlagen', 'error');
+        return { useWpAuth: false, error: error.message };
     }
 }
 
@@ -171,10 +185,27 @@ async function useMatomoWP() {
     if (matomoDetected.installed) {
         settings.matomo_url = '';
         settings.auto_detect_matomo = true;
-        await detectToken();
-        autoConnected = true;
-        connectionStatus = 'success';
-        connectionMessage = 'Automatisch mit Matomo for WordPress verbunden';
+
+        // Detect token and handle the response
+        const result = await detectToken();
+
+        if (result.useWpAuth) {
+            // WordPress authentication will be used (no token needed)
+            autoConnected = true;
+            connectionStatus = 'success';
+            connectionMessage = 'WordPress Authentifizierung aktiviert - kein Token erforderlich';
+        } else if (settings.token_auth) {
+            // A token was found and set
+            autoConnected = true;
+            connectionStatus = 'success';
+            connectionMessage = 'Automatisch mit Matomo for WordPress verbunden (Token erkannt)';
+        } else {
+            // No token and no WordPress auth - this shouldn't happen but handle it gracefully
+            autoConnected = false;
+            connectionStatus = 'error';
+            connectionMessage = 'Konnte keine gültige Authentifizierungsmethode erkennen';
+            showToast('Verbindungsfehler - bitte manuell konfigurieren', 'error');
+        }
     }
 }
 
@@ -193,8 +224,8 @@ onMount(() => {
                 <p>Matomo Widget Dashboard für WordPress</p>
             </div>
         </div>
-        <div class="dashlytics-header-actions">
-            <span class="dashlytics-version">v0.7.8</span>
+                    <div class="dashlytics-header-actions">
+                        <span class="dashlytics-version">v0.7.9</span>
             {#if connectionStatus === 'success'}
                 <span class="dashlytics-status dashlytics-status--connected">
                     <span class="dashlytics-status-dot"></span>
@@ -304,8 +335,10 @@ onMount(() => {
                             <label class="dashlytics-label">
                                 Auth Token
                                 <span class="dashlytics-label-hint">
-                                    {#if autoConnected || (matomoDetected.installed && settings.token_auth)}
+                                    {#if autoConnected && settings.token_auth}
                                         (automatisch erkannt)
+                                    {:else if autoConnected && !settings.token_auth}
+                                        (WordPress Authentifizierung)
                                     {:else}
                                         (API Zugriffstoken)
                                     {/if}
@@ -340,9 +373,13 @@ onMount(() => {
                                     </button>
                                 {/if}
                             </div>
-                            {#if autoConnected}
+                            {#if autoConnected && settings.token_auth}
                                 <p class="dashlytics-field-info">
                                     ✓ Token wurde automatisch von Matomo for WordPress übernommen
+                                </p>
+                            {:else if autoConnected && !settings.token_auth}
+                                <p class="dashlytics-field-info">
+                                    ✓ WordPress Authentifizierung aktiviert - kein Token erforderlich
                                 </p>
                             {/if}
                         </div>
@@ -359,6 +396,16 @@ onMount(() => {
                         {/if}
                     </div>
                     <div class="dashlytics-card-footer dashlytics-card-footer--sticky">
+                        {#if connectionStatus !== null}
+                            <button 
+                                type="button"
+                                class="dashlytics-btn dashlytics-btn--tertiary"
+                                on:click={resetConnectionTest}
+                                title="Verbindungstest zurücksetzen"
+                            >
+                                🔄 Zurücksetzen
+                            </button>
+                        {/if}
                         <button 
                             type="button"
                             class="dashlytics-btn dashlytics-btn--secondary"
@@ -798,6 +845,19 @@ onMount(() => {
         font-size: 13px;
         color: #64748b;
         line-height: 1.5;
+    }
+
+    /* Button Styles - Tertiary */
+    .dashlytics-btn--tertiary {
+        background-color: transparent;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+    }
+
+    .dashlytics-btn--tertiary:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+        color: #334155;
     }
 
     /* Animations */
