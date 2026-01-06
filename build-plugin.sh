@@ -10,7 +10,7 @@ echo "=================================="
 
 # Variablen
 PLUGIN_NAME="dashlytics"
-VERSION="0.7.8"
+VERSION="0.7.9"
 BUILD_DIR="./build"
 DIST_DIR="./dist"
 

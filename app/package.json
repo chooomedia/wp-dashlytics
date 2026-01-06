@@ -1,6 +1,6 @@
 {
     "name": "dashlytics-app",
-    "version": "0.7.8",
+    "version": "0.7.9",
     "type": "module",
     "description": "Dashlytics - Matomo Analytics Widget für WordPress",
     "main": "index.js",
